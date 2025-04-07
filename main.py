@@ -52,6 +52,26 @@ async def upload_audio(file: UploadFile = File(...)):
     result = await db.audio.insert_one(audio_doc)
     return {"message": "Audio file uploaded", "id": str(result.inserted_id)}
 
+# Define a GET endpoint at the path "/audio"
+# This endpoint will retrieve all audio documents from the "audio" collection
+@app.get("/audio")
+async def get_audio_files():
+    # Create an empty list to store the audio documents
+    audio_files = []
+
+    # Use an asynchronous loop to go through each document in the "audio" collection
+    async for audio in db.audio.find():
+        # Convert the ObjectId to a string so it can be included in the JSON response
+        audio["_id"] = str(audio["_id"])
+
+        # Remove the binary "content" field from the document to prevent serialization errors
+        audio.pop("content", None)
+
+        # Add the cleaned document to our result list
+        audio_files.append(audio)
+
+    # Return the list of audio documents as a JSON response
+    return audio_files
 
 
 @app.post("/player_score")
@@ -59,3 +79,5 @@ async def add_score(score: PlayerScore):
     score_doc = score.dict()
     result = await db.scores.insert_one(score_doc)
     return {"message": "Score recorded", "id": str(result.inserted_id)}
+
+
