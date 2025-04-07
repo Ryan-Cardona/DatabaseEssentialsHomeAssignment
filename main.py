@@ -10,6 +10,7 @@ client = motor.motor_asyncio.AsyncIOMotorClient(
 )
 db = client.multimedia_db
 
+# A class for the player score
 class PlayerScore(BaseModel):
     player_name: str
     score: int
