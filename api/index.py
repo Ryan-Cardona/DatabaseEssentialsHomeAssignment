@@ -21,7 +21,7 @@ if not MONGODB_URI:
 client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
 
 # Access the specific database you'll be using
-db = client.multimedia_db
+db = client["multimedia_db"]
 
 class PlayerScore(BaseModel):
     player_name: str
@@ -118,5 +118,3 @@ async def get_player_scores():
 async def read_root():
     # Return a simple JSON response to confirm the API is running.
     return {"message": "Hello World"}
-
-
