@@ -98,3 +98,12 @@ async def get_player_scores():
     # Return the list of scores as a JSON response
     return scores
 
+
+# This defines a GET route for the root URL (http://127.0.0.1:8000)
+# If a user accesses the root path, this function will be executed.
+@app.get("/")
+async def read_root():
+    # Return a simple JSON response to confirm the API is running.
+    return {"message": "Hello World"}
+
+
