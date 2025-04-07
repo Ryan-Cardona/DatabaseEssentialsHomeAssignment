@@ -80,4 +80,21 @@ async def add_score(score: PlayerScore):
     result = await db.scores.insert_one(score_doc)
     return {"message": "Score recorded", "id": str(result.inserted_id)}
 
+# Define a GET endpoint at the path "/player_scores"
+# This endpoint returns all player score documents from the "scores" collection
+@app.get("/player_scores")
+async def get_player_scores():
+    # Create an empty list to store all retrieved player scores
+    scores = []
+
+    # Loop through each document in the "scores" collection using async MongoDB cursor
+    async for score in db.scores.find():
+        # Convert the ObjectId to a string so it's JSON-compatible
+        score["_id"] = str(score["_id"])
+
+        # Add the cleaned score document to the result list
+        scores.append(score)
+
+    # Return the list of scores as a JSON response
+    return scores
 
