@@ -2,12 +2,25 @@
 from pydantic import BaseModel
 import motor.motor_asyncio
 
+import os  # Module to interact with the operating system (used for environment variables)
+from dotenv import load_dotenv  # Loads environment variables from a .env file (optional but helpful for local dev)
+
 app = FastAPI()
 
-# ✅ MongoDB connection
-client = motor.motor_asyncio.AsyncIOMotorClient(
-    "mongodb+srv://ryan90121:ddVpx1gAfJN19AIp@cluster0.ojdbr8g.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-)
+# Load environment variables from a .env file if it exists
+load_dotenv()
+
+# Retrieve the MongoDB connection string from an environment variable named 'MONGODB_URI'
+MONGODB_URI = os.getenv("MONGODB_URI")
+
+# Raise an error if the connection string is not set in the environment
+if not MONGODB_URI:
+    raise RuntimeError("❌ MONGODB_URI is not set in the environment variables.")
+
+# Initialize the asynchronous MongoDB client with the URI
+client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
+
+# Access the specific database you'll be using
 db = client.multimedia_db
 
 class PlayerScore(BaseModel):
