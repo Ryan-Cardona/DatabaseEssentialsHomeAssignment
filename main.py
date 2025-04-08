@@ -16,6 +16,14 @@ class PlayerScore(BaseModel):
     player_name: str
     score: int
 
+# Checking if the MongoDB connection is successful
+@app.on_event("startup")
+async def init_db():
+    print("Pinging MongoDB...")
+    await db.command("ping")
+    print("MongoDB connection successful")
+
+
 @app.post("/upload_sprite")
 async def upload_sprite(file: UploadFile = File(...)):
     content = await file.read()
@@ -27,27 +35,36 @@ async def upload_sprite(file: UploadFile = File(...)):
 # When accessed, it will return all sprite documents from the "sprites" collection
 @app.get("/sprites")
 async def get_sprites():
-    start = time.time()
-    print ("Starting /sprites fetch...")
-    # Create an empty list to store the sprites we retrieve from MongoDB
-    sprites = []
+    import time  # Used to measure how long the operation takes
+    start = time.time()  # Store the start time for performance tracking
+    print("✅ Starting /sprites fetch...")  # Log the start of the fetch process
 
-    # Use an asynchronous loop to fetch each document in the "sprites" collection
-    async for sprite in db.sprites.find().limit(10): # Limit to 10 sprites
-        # Convert the MongoDB ObjectId to a string so it can be returned in JSON format
-        sprite["_id"] = str(sprite["_id"])
+    sprites = []  # This list will hold the documents fetched from the database
 
-        # Remove the "content" field (binary data) to avoid serialization errors
-        # JSON can't handle raw bytes, so we exclude it from the response
-        sprite.pop("content", None)
+    try:
+        # Use a try-except block to catch any MongoDB-related errors
+        # Limit the number of returned documents to 10 to avoid slow performance
+        async for sprite in db.sprites.find().limit(10):
+            # Convert the MongoDB ObjectId to a string so it can be serialized in JSON
+            sprite["_id"] = str(sprite["_id"])
 
-        # Add the cleaned-up document to our list
-        sprites.append(sprite)
+            # Remove the binary 'content' field to prevent JSON serialization issues
+            sprite.pop("content", None)
 
-    print("Finished fetch in", time.time() - start, "seconds")
+            # Add the cleaned-up document to our result list
+            sprites.append(sprite)
 
-    # Return the list of all sprite documents as a JSON response
+        # Log how long the entire operation took
+        print(f"✅ Completed /sprites in {time.time() - start:.2f} seconds")
+
+    except Exception as e:
+        # If an error occurs, print it to the logs and raise an HTTPException
+        print(f"❌ Error fetching sprites: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch sprites")
+
+    # Return the list of sprites as a JSON response
     return sprites
+
 
 
 
