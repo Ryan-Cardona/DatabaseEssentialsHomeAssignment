@@ -30,7 +30,7 @@ async def get_sprites():
     sprites = []
 
     # Use an asynchronous loop to fetch each document in the "sprites" collection
-    async for sprite in db.sprites.find():
+    async for sprite in db.sprites.find().limit(10): # Limit to 10 sprites
         # Convert the MongoDB ObjectId to a string so it can be returned in JSON format
         sprite["_id"] = str(sprite["_id"])
 
