@@ -131,3 +131,9 @@ async def get_player_scores():
     # Return the list as a JSON response
     return scores
 
+# Define a root endpoint that returns a simple JSON message
+@app.get("/")
+async def root():
+    return {"status": "running"}
+
+
