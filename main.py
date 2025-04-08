@@ -106,17 +106,24 @@ async def add_score(score: PlayerScore):
 # This endpoint returns all player score documents from the "scores" collection
 @app.get("/player_scores")
 async def get_player_scores():
-    # Create an empty list to store all retrieved player scores
-    scores = []
+    start = time.time()  # Track how long the fetch takes
+    print("✅ Starting /player_scores fetch...")
 
-    # Loop through each document in the "scores" collection using async MongoDB cursor
-    async for score in db.scores.find():
-        # Convert the ObjectId to a string so it's JSON-compatible
-        score["_id"] = str(score["_id"])
+    scores = []  # List to store the documents from the collection
 
-        # Add the cleaned score document to the result list
-        scores.append(score)
+    try:
+        # Loop through each document in the "scores" collection
+        async for score in db.scores.find().limit(10):  # Use limit to prevent long fetches
+            score["_id"] = str(score["_id"])  # Convert ObjectId to string for JSON
+            scores.append(score)
 
-    # Return the list of scores as a JSON response
+        print(f"✅ Finished /player_scores in {time.time() - start:.2f} seconds")
+
+    except Exception as e:
+        # Print the error to Vercel logs for debugging
+        print("❌ ERROR in /player_scores:", str(e))
+        raise HTTPException(status_code=500, detail="Failed to retrieve player scores")
+
+    # Return the list as a JSON response
     return scores
 
