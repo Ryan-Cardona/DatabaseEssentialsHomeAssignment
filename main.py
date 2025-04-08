@@ -1,6 +1,7 @@
 ﻿from fastapi import FastAPI, File, UploadFile, HTTPException
 from pydantic import BaseModel
 import motor.motor_asyncio
+import time
 
 app = FastAPI()
 
@@ -26,6 +27,8 @@ async def upload_sprite(file: UploadFile = File(...)):
 # When accessed, it will return all sprite documents from the "sprites" collection
 @app.get("/sprites")
 async def get_sprites():
+    start = time.time()
+    print ("Starting /sprites fetch...")
     # Create an empty list to store the sprites we retrieve from MongoDB
     sprites = []
 
@@ -40,6 +43,8 @@ async def get_sprites():
 
         # Add the cleaned-up document to our list
         sprites.append(sprite)
+
+    print("Finished fetch in", time.time() - start, "seconds")
 
     # Return the list of all sprite documents as a JSON response
     return sprites
