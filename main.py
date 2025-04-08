@@ -19,9 +19,13 @@ class PlayerScore(BaseModel):
 # Checking if the MongoDB connection is successful
 @app.on_event("startup")
 async def init_db():
-    print("Pinging MongoDB...")
-    await db.command("ping")
-    print("MongoDB connection successful")
+    try:
+        print("⏳ Pinging MongoDB on startup...")
+        await db.command("ping")
+        print("✅ MongoDB connection established.")
+    except Exception as e:
+        print("❌ MongoDB startup ping failed:", str(e))
+
 
 
 @app.post("/upload_sprite")
@@ -43,7 +47,7 @@ async def get_sprites():
 
     try:
         # Use a try-except block to catch any MongoDB-related errors
-        async for sprite in db.sprites.find():
+        async for sprite in db.sprites.find().limit(10):  # Limit to 10 documents for performance
             # Convert the MongoDB ObjectId to a string so it can be serialized in JSON
             sprite["_id"] = str(sprite["_id"])
 
