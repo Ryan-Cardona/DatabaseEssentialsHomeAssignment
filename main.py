@@ -1,26 +1,22 @@
-﻿from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+﻿from fastapi import FastAPI, File, UploadFile, HTTPException
+from pydantic import BaseModel
 import motor.motor_asyncio
-import os
 import time
 
 app = FastAPI()
 
-# Allow CORS for testing/debugging (optional)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+# ✅ MongoDB connection
+client = motor.motor_asyncio.AsyncIOMotorClient(
+    "mongodb+srv://ryan90121:ddVpx1gAfJN19AIp@cluster0.ojdbr8g.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 )
-
-# MongoDB client connection setup
-mongo_uri = os.getenv("MONGO_URI") or "mongodb+srv://ryan90121:ddVpx1gAfJN19AIp@cluster0.ojdbr8g.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-client = motor.motor_asyncio.AsyncIOMotorClient(mongo_uri)
 db = client.multimedia_db
 
-# On FastAPI startup, ping the MongoDB server to confirm the connection
+#Class for the player score
+class PlayerScore(BaseModel):
+    player_name: str
+    score: int
+
+# Checking if the MongoDB connection is successful
 @app.on_event("startup")
 async def init_db():
     try:
@@ -30,97 +26,117 @@ async def init_db():
     except Exception as e:
         print("❌ MongoDB startup ping failed:", str(e))
 
-# Define a GET endpoint at the root path to check if the server is alive
-@app.get("/")
-async def root():
-    return {"status": "running"}
+
+
+@app.post("/upload_sprite")
+async def upload_sprite(file: UploadFile = File(...)):
+    content = await file.read()
+    sprite_doc = {"filename": file.filename, "content": content}
+    result = await db.sprites.insert_one(sprite_doc)
+    return {"message": "Sprite uploaded", "id": str(result.inserted_id)}
 
 # Define a GET endpoint at the path "/sprites"
-# This endpoint returns all sprite documents from the "sprites" collection
+# When accessed, it will return all sprite documents from the "sprites" collection
 @app.get("/sprites")
 async def get_sprites():
-    start = time.time()
-    print("✅ Starting /sprites fetch...")
+    import time  # Used to measure how long the operation takes
+    start = time.time()  # Store the start time for performance tracking
+    print("✅ Starting /sprites fetch...")  # Log the start of the fetch process
 
-    sprites = []  # Create an empty list to store all retrieved sprites
+    sprites = []  # This list will hold the documents fetched from the database
 
     try:
-        # Loop through each document in the "sprites" collection using async MongoDB cursor
-        async for sprite in db.sprites.find().limit(10):
-            # Convert the ObjectId to a string so it's JSON-compatible
+        # Use a try-except block to catch any MongoDB-related errors
+        async for sprite in db.sprites.find().limit(10):  # Limit to 10 documents for performance
+            # Convert the MongoDB ObjectId to a string so it can be serialized in JSON
             sprite["_id"] = str(sprite["_id"])
 
-            # Remove the binary 'content' field to avoid serialization issues
+            # Remove the binary 'content' field to prevent JSON serialization issues
             sprite.pop("content", None)
 
-            # Add the cleaned sprite document to the result list
+            # Add the cleaned-up document to our result list
             sprites.append(sprite)
 
+        # Log how long the entire operation took
         print(f"✅ Completed /sprites in {time.time() - start:.2f} seconds")
 
     except Exception as e:
-        # If anything goes wrong, print the full error to the log and raise a 500 error
-        print("❌ ERROR in /sprites:", str(e))
+        # If an error occurs, print it to the logs and raise an HTTPException
+        print(f"❌ Error fetching sprites: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch sprites")
 
     # Return the list of sprites as a JSON response
     return sprites
 
+
+
+
+@app.post("/upload_audio")
+async def upload_audio(file: UploadFile = File(...)):
+    content = await file.read()
+    audio_doc = {"filename": file.filename, "content": content}
+    result = await db.audio.insert_one(audio_doc)
+    return {"message": "Audio file uploaded", "id": str(result.inserted_id)}
+
 # Define a GET endpoint at the path "/audio"
-# This endpoint returns all audio file documents from the "audio" collection
+# This endpoint will retrieve all audio documents from the "audio" collection
 @app.get("/audio")
 async def get_audio_files():
     start = time.time()
     print("✅ Starting /audio fetch...")
 
-    audio_files = []  # Create an empty list to store all retrieved audio files
+    audio_files = []
 
     try:
-        # Loop through each document in the "audio" collection using async MongoDB cursor
-        async for audio in db.audio.find().limit(10):
-            # Convert the ObjectId to a string so it's JSON-compatible
-            audio["_id"] = str(audio["_id"])
-
-            # Remove the binary 'content' field to avoid serialization issues
-            audio.pop("content", None)
-
-            # Add the cleaned audio document to the result list
+        async for audio in db.audio.find().limit(10):  # Limit for performance
+            audio["_id"] = str(audio["_id"])           # Convert ObjectId to string
+            audio.pop("content", None)                 # Remove binary field
             audio_files.append(audio)
 
-        print(f"✅ Completed /audio in {time.time() - start:.2f} seconds")
+        print(f"✅ Finished /audio in {time.time() - start:.2f} seconds")
 
     except Exception as e:
-        # If anything goes wrong, print the full error to the log and raise a 500 error
         print("❌ ERROR in /audio:", str(e))
         raise HTTPException(status_code=500, detail="Failed to fetch audio files")
 
-    # Return the list of audio files as a JSON response
     return audio_files
+
+
+
+@app.post("/player_score")
+async def add_score(score: PlayerScore):
+    score_doc = score.dict()
+    result = await db.scores.insert_one(score_doc)
+    return {"message": "Score recorded", "id": str(result.inserted_id)}
 
 # Define a GET endpoint at the path "/player_scores"
 # This endpoint returns all player score documents from the "scores" collection
 @app.get("/player_scores")
 async def get_player_scores():
-    start = time.time()
+    start = time.time()  # Track how long the fetch takes
     print("✅ Starting /player_scores fetch...")
 
-    scores = []  # Create an empty list to store all retrieved player scores
+    scores = []  # List to store the documents from the collection
 
     try:
-        # Loop through each document in the "scores" collection using async MongoDB cursor
-        async for score in db.scores.find().limit(10):
-            # Convert the ObjectId to a string so it's JSON-compatible
-            score["_id"] = str(score["_id"])
-
-            # Add the cleaned score document to the result list
+        # Loop through each document in the "scores" collection
+        async for score in db.scores.find().limit(10):  # Use limit to prevent long fetches
+            score["_id"] = str(score["_id"])  # Convert ObjectId to string for JSON
             scores.append(score)
 
-        print(f"✅ Completed /player_scores in {time.time() - start:.2f} seconds")
+        print(f"✅ Finished /player_scores in {time.time() - start:.2f} seconds")
 
     except Exception as e:
-        # If anything goes wrong, print the full error to the log and raise a 500 error
+        # Print the error to Vercel logs for debugging
         print("❌ ERROR in /player_scores:", str(e))
         raise HTTPException(status_code=500, detail="Failed to retrieve player scores")
 
-    # Return the list of scores as a JSON response
+    # Return the list as a JSON response
     return scores
+
+# Define a root endpoint that returns a simple JSON message
+@app.get("/")
+async def root():
+    return {"status": "running"}
+
+
