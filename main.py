@@ -2,10 +2,12 @@
 from pydantic import BaseModel
 import motor.motor_asyncio
 import time
+import asyncio  # ⬅️ Needed for async sleep during retries
 
 app = FastAPI()
 
 # ✅ MongoDB connection
+# The MongoDB client is created once and reused — important for serverless cold starts
 client = motor.motor_asyncio.AsyncIOMotorClient(
     "mongodb+srv://ryan90121:ddVpx1gAfJN19AIp@cluster0.ojdbr8g.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 )
@@ -16,6 +18,24 @@ class PlayerScore(BaseModel):
     player_name: str
     score: int
 
+# ⏳ Helper function that retries MongoDB queries up to MAX_RETRIES times
+# Used by endpoints that fetch documents from collections
+MAX_RETRIES = 3  # You can increase this if you expect more frequent failures
+
+async def try_mongo_fetch(collection):
+    for attempt in range(MAX_RETRIES):
+        try:
+            docs = []
+            async for doc in collection.find().limit(10):  # ⏱️ Keep performance in mind
+                doc["_id"] = str(doc["_id"])               # Convert ObjectId to string
+                doc.pop("content", None)                   # Remove binary fields
+                docs.append(doc)
+            return docs
+        except Exception as e:
+            print(f"⚠️ MongoDB fetch failed (attempt {attempt + 1}): {e}")
+            await asyncio.sleep(0.5)  # 🔁 Wait before retrying
+    raise HTTPException(status_code=500, detail="Database unavailable after retries")
+
 # Checking if the MongoDB connection is successful
 @app.on_event("startup")
 async def init_db():
@@ -24,6 +44,7 @@ async def init_db():
         await db.command("ping")
         print("✅ MongoDB connection established.")
     except Exception as e:
+        # 🧊 This can fail during cold start or concurrent triggers — safe to just log
         print("❌ MongoDB startup ping failed:", str(e))
 
 
@@ -43,31 +64,14 @@ async def get_sprites():
     start = time.time()  # Store the start time for performance tracking
     print("✅ Starting /sprites fetch...")  # Log the start of the fetch process
 
-    sprites = []  # This list will hold the documents fetched from the database
+    # Use retry-enabled fetch helper to avoid cold start failures
+    sprites = await try_mongo_fetch(db.sprites)
 
-    try:
-        # Use a try-except block to catch any MongoDB-related errors
-        async for sprite in db.sprites.find().limit(10):  # Limit to 10 documents for performance
-            # Convert the MongoDB ObjectId to a string so it can be serialized in JSON
-            sprite["_id"] = str(sprite["_id"])
-
-            # Remove the binary 'content' field to prevent JSON serialization issues
-            sprite.pop("content", None)
-
-            # Add the cleaned-up document to our result list
-            sprites.append(sprite)
-
-        # Log how long the entire operation took
-        print(f"✅ Completed /sprites in {time.time() - start:.2f} seconds")
-
-    except Exception as e:
-        # If an error occurs, print it to the logs and raise an HTTPException
-        print(f"❌ Error fetching sprites: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch sprites")
+    # Log how long the entire operation took
+    print(f"✅ Completed /sprites in {time.time() - start:.2f} seconds")
 
     # Return the list of sprites as a JSON response
     return sprites
-
 
 
 
@@ -85,20 +89,10 @@ async def get_audio_files():
     start = time.time()
     print("✅ Starting /audio fetch...")
 
-    audio_files = []
+    # Use retry-enabled fetch helper
+    audio_files = await try_mongo_fetch(db.audio)
 
-    try:
-        async for audio in db.audio.find().limit(10):  # Limit for performance
-            audio["_id"] = str(audio["_id"])           # Convert ObjectId to string
-            audio.pop("content", None)                 # Remove binary field
-            audio_files.append(audio)
-
-        print(f"✅ Finished /audio in {time.time() - start:.2f} seconds")
-
-    except Exception as e:
-        print("❌ ERROR in /audio:", str(e))
-        raise HTTPException(status_code=500, detail="Failed to fetch audio files")
-
+    print(f"✅ Finished /audio in {time.time() - start:.2f} seconds")
     return audio_files
 
 
@@ -116,27 +110,13 @@ async def get_player_scores():
     start = time.time()  # Track how long the fetch takes
     print("✅ Starting /player_scores fetch...")
 
-    scores = []  # List to store the documents from the collection
+    # Use retry-enabled fetch helper
+    scores = await try_mongo_fetch(db.scores)
 
-    try:
-        # Loop through each document in the "scores" collection
-        async for score in db.scores.find().limit(10):  # Use limit to prevent long fetches
-            score["_id"] = str(score["_id"])  # Convert ObjectId to string for JSON
-            scores.append(score)
-
-        print(f"✅ Finished /player_scores in {time.time() - start:.2f} seconds")
-
-    except Exception as e:
-        # Print the error to Vercel logs for debugging
-        print("❌ ERROR in /player_scores:", str(e))
-        raise HTTPException(status_code=500, detail="Failed to retrieve player scores")
-
-    # Return the list as a JSON response
+    print(f"✅ Finished /player_scores in {time.time() - start:.2f} seconds")
     return scores
 
 # Define a root endpoint that returns a simple JSON message
 @app.get("/")
 async def root():
     return {"status": "running"}
-
-
