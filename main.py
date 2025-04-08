@@ -3,38 +3,45 @@ from pydantic import BaseModel
 from contextlib import asynccontextmanager
 import motor.motor_asyncio
 import time
-import os
-from dotenv import load_dotenv
+import os  # To access environment variables
+from dotenv import load_dotenv  # Loads environment variables from a .env file (for local dev)
 
-load_dotenv()  # Optional, only used locally if you test with a .env file
+# Load environment variables from a local .env file (only useful during development)
+load_dotenv()
 
 
-# Setup lifespan context to manage MongoDB connection lifecycle manually
+# App lifespan context manager: sets up and tears down the MongoDB connection
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("⏳ Initializing MongoDB client...")
     try:
-        # Create and attach MongoDB client and DB to the app object
+        # Load MongoDB URI from environment variable for security
         MONGODB_URI = os.getenv("MONGODB_URI")
-        app.mongodb_client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
-        app.mongodb = app.mongodb_client.multimedia_db
 
-        # Ping to ensure the connection is valid
+        # Create a MongoDB client and attach it to the app
+        app.mongodb_client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
+        app.mongodb = app.mongodb_client.multimedia_db  # Use the "multimedia_db" database
+
+        # Check that MongoDB is reachable
         await app.mongodb.command("ping")
         print("✅ MongoDB connected.")
-        yield
+        yield  # Yield control back to the app
     finally:
         print("🔒 Closing MongoDB connection...")
         app.mongodb_client.close()
 
-# Create FastAPI app with lifespan management
+
+# Create the FastAPI app instance with the custom lifespan manager
 app = FastAPI(lifespan=lifespan)
 
-# Define PlayerScore model
+
+# Model representing player score data structure
 class PlayerScore(BaseModel):
     player_name: str
     score: int
 
+
+# Endpoint to upload sprite image files into MongoDB
 @app.post("/upload_sprite")
 async def upload_sprite(request: Request, file: UploadFile = File(...)):
     content = await file.read()
@@ -42,22 +49,26 @@ async def upload_sprite(request: Request, file: UploadFile = File(...)):
     result = await request.app.mongodb.sprites.insert_one(sprite_doc)
     return {"message": "Sprite uploaded", "id": str(result.inserted_id)}
 
+
+# Endpoint to retrieve list of sprites (excluding file content)
 @app.get("/sprites")
 async def get_sprites(request: Request):
     start = time.time()
     print("✅ Starting /sprites fetch...")
     try:
-        # Convert MongoDB cursor to list (better than async for in serverless)
-        sprites = await request.app.mongodb.sprites.find().to_list(length=10)
+        # Fetching sprite documents
+        sprites = await request.app.mongodb.sprites.find()
         for sprite in sprites:
-            sprite["_id"] = str(sprite["_id"])
-            sprite.pop("content", None)
+            sprite["_id"] = str(sprite["_id"])  # Convert ObjectId to string
+            sprite.pop("content", None)  # Remove binary content from response
         print(f"✅ Completed /sprites in {time.time() - start:.2f} seconds")
         return sprites
     except Exception as e:
         print(f"❌ Error in /sprites: {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch sprites")
 
+
+# Endpoint to upload audio files into MongoDB
 @app.post("/upload_audio")
 async def upload_audio(request: Request, file: UploadFile = File(...)):
     content = await file.read()
@@ -65,12 +76,14 @@ async def upload_audio(request: Request, file: UploadFile = File(...)):
     result = await request.app.mongodb.audio.insert_one(audio_doc)
     return {"message": "Audio file uploaded", "id": str(result.inserted_id)}
 
+
+# Endpoint to retrieve list of uploaded audio files (excluding file content)
 @app.get("/audio")
 async def get_audio_files(request: Request):
     start = time.time()
     print("✅ Starting /audio fetch...")
     try:
-        audio_files = await request.app.mongodb.audio.find().to_list(length=10)
+        audio_files = await request.app.mongodb.audio.find()
         for audio in audio_files:
             audio["_id"] = str(audio["_id"])
             audio.pop("content", None)
@@ -80,12 +93,16 @@ async def get_audio_files(request: Request):
         print(f"❌ ERROR in /audio: {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch audio files")
 
+
+# Endpoint to record a player's score in the database
 @app.post("/player_score")
 async def add_score(request: Request, score: PlayerScore):
     score_doc = score.dict()
     result = await request.app.mongodb.scores.insert_one(score_doc)
     return {"message": "Score recorded", "id": str(result.inserted_id)}
 
+
+# Endpoint to retrieve the top 10 player scores
 @app.get("/player_scores")
 async def get_player_scores(request: Request):
     start = time.time()
@@ -100,6 +117,8 @@ async def get_player_scores(request: Request):
         print(f"❌ ERROR in /player_scores: {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve player scores")
 
+
+# Root endpoint to check if the server is running
 @app.get("/")
 async def root():
     return {"status": "running"}
