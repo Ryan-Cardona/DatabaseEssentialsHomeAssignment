@@ -82,22 +82,25 @@ async def upload_audio(file: UploadFile = File(...)):
 # This endpoint will retrieve all audio documents from the "audio" collection
 @app.get("/audio")
 async def get_audio_files():
-    # Create an empty list to store the audio documents
+    start = time.time()
+    print("✅ Starting /audio fetch...")
+
     audio_files = []
 
-    # Use an asynchronous loop to go through each document in the "audio" collection
-    async for audio in db.audio.find():
-        # Convert the ObjectId to a string so it can be included in the JSON response
-        audio["_id"] = str(audio["_id"])
+    try:
+        async for audio in db.audio.find().limit(10):  # Limit for performance
+            audio["_id"] = str(audio["_id"])           # Convert ObjectId to string
+            audio.pop("content", None)                 # Remove binary field
+            audio_files.append(audio)
 
-        # Remove the binary "content" field from the document to prevent serialization errors
-        audio.pop("content", None)
+        print(f"✅ Finished /audio in {time.time() - start:.2f} seconds")
 
-        # Add the cleaned document to our result list
-        audio_files.append(audio)
+    except Exception as e:
+        print("❌ ERROR in /audio:", str(e))
+        raise HTTPException(status_code=500, detail="Failed to fetch audio files")
 
-    # Return the list of audio documents as a JSON response
     return audio_files
+
 
 
 @app.post("/player_score")
