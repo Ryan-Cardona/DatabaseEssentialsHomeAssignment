@@ -16,7 +16,7 @@ app.add_middleware(
 )
 
 # MongoDB client connection setup
-mongo_uri = os.getenv("MONGO_URI") or "mongodb+srv://<your-uri-here>"
+mongo_uri = os.getenv("MONGO_URI") or "mongodb+srv://ryan90121:ddVpx1gAfJN19AIp@cluster0.ojdbr8g.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 client = motor.motor_asyncio.AsyncIOMotorClient(mongo_uri)
 db = client.multimedia_db
 
