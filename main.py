@@ -3,6 +3,11 @@ from pydantic import BaseModel
 from contextlib import asynccontextmanager
 import motor.motor_asyncio
 import time
+import os
+from dotenv import load_dotenv
+
+load_dotenv()  # Optional, only used locally if you test with a .env file
+
 
 # Setup lifespan context to manage MongoDB connection lifecycle manually
 @asynccontextmanager
@@ -10,10 +15,9 @@ async def lifespan(app: FastAPI):
     print("⏳ Initializing MongoDB client...")
     try:
         # Create and attach MongoDB client and DB to the app object
-        app.mongodb_client = motor.motor_asyncio.AsyncIOMotorClient(
-            "mongodb+srv://ryan90121:ddVpx1gAfJN19AIp@cluster0.ojdbr8g.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
-            serverSelectionTimeoutMS=3000  # Prevent long wait on errors
-        )
+        MONGODB_URI = os.getenv("MONGODB_URI")
+        client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
+
         app.mongodb = app.mongodb_client.multimedia_db
 
         # Ping to ensure the connection is valid
