@@ -16,8 +16,7 @@ async def lifespan(app: FastAPI):
     try:
         # Create and attach MongoDB client and DB to the app object
         MONGODB_URI = os.getenv("MONGODB_URI")
-        client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
-
+        app.mongodb_client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
         app.mongodb = app.mongodb_client.multimedia_db
 
         # Ping to ensure the connection is valid
