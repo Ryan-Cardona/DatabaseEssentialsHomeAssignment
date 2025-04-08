@@ -43,8 +43,7 @@ async def get_sprites():
 
     try:
         # Use a try-except block to catch any MongoDB-related errors
-        # Limit the number of returned documents to 10 to avoid slow performance
-        async for sprite in db.sprites.find().limit(10):
+        async for sprite in db.sprites.find():
             # Convert the MongoDB ObjectId to a string so it can be serialized in JSON
             sprite["_id"] = str(sprite["_id"])
 
