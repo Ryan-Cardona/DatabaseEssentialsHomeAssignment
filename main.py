@@ -51,7 +51,7 @@ async def get_sprites(request: Request):
     print("\u2705 Starting /sprites fetch...")
     try:
         # Fetch up to 10 sprite documents from the database
-        sprites = await request.app.mongodb.sprites.find()
+        sprites = await request.app.mongodb.sprites.find().to_list(10)
         for sprite in sprites:
             # Convert ObjectId to string for JSON serialization
             sprite["_id"] = str(sprite["_id"])
@@ -78,7 +78,7 @@ async def get_audio_files(request: Request):
     print("\u2705 Starting /audio fetch...")
     try:
         # Fetch up to 10 audio file documents from the database
-        audio_files = await request.app.mongodb.audio.find()
+        audio_files = await request.app.mongodb.audio.find().to_list(10)
         for audio in audio_files:
             # Convert ObjectId to string for JSON serialization
             audio["_id"] = str(audio["_id"])
@@ -104,7 +104,7 @@ async def get_player_scores(request: Request):
     print("\u2705 Starting /player_scores fetch...")
     try:
         # Fetch up to 10 player score documents from the database
-        scores = await request.app.mongodb.scores.find()
+        scores = await request.app.mongodb.scores.find().to_list(10)
         for score in scores:
             # Convert ObjectId to string for JSON serialization
             score["_id"] = str(score["_id"])
